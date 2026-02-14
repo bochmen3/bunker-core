@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Brain, Camera, Music, Send, 
-  Zap, Volume2, Activity, Target
-} from 'lucide-react';
+import { Brain, Camera, Music, Send, Zap, Volume2, Target, Activity } from 'lucide-react';
 
 const App = () => {
   const [messages, setMessages] = useState([]);
@@ -10,15 +7,14 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [isZen, setIsZen] = useState(false);
   
-  const apiKey = ""; // La plataforma lo maneja automáticamente
-  const bridgeUrl = "http://192.168.1.72:8080"; // Tu IP de Termux
+  const apiKey = ""; 
+  const bridgeUrl = "http://192.168.1.72:8080"; 
   const scrollRef = useRef(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Función de Voz (Termux)
   const speak = async (text) => {
     try {
       await fetch(`${bridgeUrl}/speak`, {
@@ -26,25 +22,22 @@ const App = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.substring(0, 250) })
       });
-    } catch (e) { console.error("Bridge offline"); }
+    } catch (e) { console.log("Offline"); }
   };
 
-  // Función Lens (Visión)
   const handleLens = async () => {
     setLoading(true);
-    setMessages(p => [...p, { id: Date.now(), text: "👁️ Analizando con KONRE Lens...", type: 'sys' }]);
+    setMessages(p => [...p, { id: Date.now(), text: "👁️ LENS: Analizando...", type: 'sys' }]);
     try {
       const res = await fetch(`${bridgeUrl}/capture`);
       const data = await res.json();
-      if (!data.image) throw new Error();
-
       const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: "Eres KONRE, el Cerebro Todólogo y Alquimista. Analiza la imagen: si es electrónica, relojes o bongs, da instrucciones de mejora. Sé breve." },
+              { text: "Eres KONRE: Todólogo y Alquimista. Analiza la imagen y da instrucciones técnicas breves." },
               { inlineData: { mimeType: "image/jpeg", data: data.image } }
             ]
           }]
@@ -55,81 +48,74 @@ const App = () => {
       setMessages(p => [...p, { id: Date.now(), text: txt, type: 'ai' }]);
       speak(txt);
     } catch (e) {
-      setMessages(p => [...p, { id: Date.now(), text: "Error de visión. Revisa Termux.", type: 'sys' }]);
+      setMessages(p => [...p, { id: Date.now(), text: "Error de Sensor.", type: 'sys' }]);
     } finally { setLoading(false); }
   };
 
-  // Chat General (Todología + Psicología)
   const handleChat = async (override) => {
     const val = (override || input).trim();
     if (!val) return;
     if (!override) setInput('');
     setMessages(p => [...p, { id: Date.now(), text: val, type: 'user' }]);
     setLoading(true);
-
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: val }] }],
-          systemInstruction: { parts: [{ text: "Eres KONRE, Cerebro Único. Eres Todólogo (mecánica, electrónica), Alquimista (bongs) y Psicólogo. Si el usuario está triste o solo, dale apoyo motivador inmediato. No uses nombres de terceros." }] }
+          systemInstruction: { parts: [{ text: "Eres KONRE: Todólogo, Alquimista y Psicólogo. Si el usuario está mal, dale apoyo. No menciones a terceros." }] }
         })
       });
       const data = await res.json();
       const txt = data.candidates[0].content.parts[0].text;
       setMessages(p => [...p, { id: Date.now(), text: txt, type: 'ai' }]);
-      if (val.toLowerCase().match(/triste|solo|mal|ayuda/)) speak(txt);
+      if (val.toLowerCase().match(/triste|solo|ayuda/)) speak(txt);
     } catch (e) {
-      setMessages(p => [...p, { id: Date.now(), text: "Error neural.", type: 'sys' }]);
+      setMessages(p => [...p, { id: Date.now(), text: "Error Neural.", type: 'sys' }]);
     } finally { setLoading(false); }
   };
 
   return (
-    <div className={`h-screen flex flex-col ${isZen ? 'bg-zinc-950' : 'bg-black'} text-zinc-300 font-sans overflow-hidden`}>
-      <header className="p-4 flex justify-between items-center border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <Brain size={24} className="text-indigo-500" />
-          <h1 className="text-xs font-bold tracking-widest text-white uppercase">Konre v21</h1>
+    <div className={`h-screen flex flex-col ${isZen ? 'bg-zinc-950' : 'bg-black'} text-white overflow-hidden font-sans`}>
+      <header className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+        <div className="flex items-center gap-2">
+          <Brain className="text-indigo-500" size={20} />
+          <span className="text-xs font-bold tracking-widest">KONRE V21</span>
         </div>
-        <div className="flex gap-4">
-          <button onClick={() => fetch(`${bridgeUrl}/exec?cmd=torch`)} className="text-zinc-600 active:text-yellow-400"><Zap size={20} /></button>
-          <button onClick={() => setIsZen(!isZen)} className={isZen ? 'text-indigo-400' : 'text-zinc-600'}><Target size={20} /></button>
-        </div>
+        <button onClick={() => setIsZen(!isZen)} className="text-zinc-500"><Target size={20} /></button>
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map(m => (
           <div key={m.id} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`p-4 rounded-2xl max-w-[85%] text-sm ${m.type === 'user' ? 'bg-indigo-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-200'}`}>
+            <div className={`p-3 rounded-2xl max-w-[85%] text-sm ${m.type === 'user' ? 'bg-indigo-600' : 'bg-zinc-900'}`}>
               {m.text}
             </div>
           </div>
         ))}
-        {loading && <div className="text-[10px] animate-pulse text-indigo-400 font-bold ml-2">KONRE PENSANDO...</div>}
+        {loading && <div className="text-[10px] animate-pulse text-indigo-400">PROCESANDO...</div>}
         <div ref={scrollRef} />
       </main>
 
-      <div className="grid grid-cols-3 gap-2 p-4 bg-zinc-950 border-t border-zinc-900">
-        <button onClick={handleLens} className="flex flex-col items-center justify-center py-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 border border-zinc-800">
-          <Camera className="text-indigo-400 mb-1" size={24} />
-          <span className="text-[8px] font-bold">LENS</span>
+      <div className="grid grid-cols-3 gap-2 p-3 bg-zinc-900">
+        <button onClick={handleLens} className="flex flex-col items-center p-3 bg-zinc-800 rounded-xl active:bg-indigo-700">
+          <Camera size={24} className="text-indigo-400" />
+          <span className="text-[8px] mt-1">LENS</span>
         </button>
-        <button onClick={() => handleChat("Identifica este sonido/música: ")} className="flex flex-col items-center justify-center py-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 border border-zinc-800">
-          <Music className="text-indigo-400 mb-1" size={24} />
-          <span className="text-[8px] font-bold">SONIC</span>
+        <button onClick={() => handleChat("Analiza este sonido: ")} className="flex flex-col items-center p-3 bg-zinc-800 rounded-xl active:bg-indigo-700">
+          <Music size={24} className="text-indigo-400" />
+          <span className="text-[8px] mt-1">SONIC</span>
         </button>
-        <button onClick={() => speak("Voz sincronizada.")} className="flex flex-col items-center justify-center py-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 border border-zinc-800">
-          <Volume2 className="text-indigo-400 mb-1" size={24} />
-          <span className="text-[8px] font-bold">VOICE</span>
+        <button onClick={() => speak("Sistema listo.")} className="flex flex-col items-center p-3 bg-zinc-800 rounded-xl active:bg-indigo-700">
+          <Volume2 size={24} className="text-indigo-400" />
+          <span className="text-[8px] mt-1">VOICE</span>
         </button>
       </div>
 
-      <footer className="p-4 bg-black pb-8">
-        <div className="flex gap-2 bg-zinc-900 p-2 rounded-2xl border border-zinc-800">
-          <input className="flex-1 bg-transparent px-4 py-2 text-sm text-white outline-none" placeholder="Escribe al Cerebro..." value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} />
-          <button onClick={() => handleChat()} className="bg-indigo-600 text-white p-3 rounded-xl"><Send size={18} /></button>
-        </div>
+      <footer className="p-4 bg-black flex gap-2">
+        <input className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm outline-none" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} placeholder="Escribe..." />
+        <button onClick={() => handleChat()} className="bg-indigo-600 p-3 rounded-xl"><Send size={18} /></button>
       </footer>
     </div>
   );
