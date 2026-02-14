@@ -1,50 +1,68 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Wrench, Zap, Cpu, Clock, Bike, Send, 
-  Settings, Terminal, HardDrive, Shield,
-  Activity, PenTool, Layers
+  Brain, Camera, Mic, Music, Send, 
+  Zap, Heart, Beaker, MessageSquare, 
+  Volume2, Eye, Activity
 } from 'lucide-react';
 
 const App = () => {
-  const [isAuth, setIsAuth] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('console');
+  const [isCameraActive, setIsCameraActive] = useState(false);
   
-  // Configuración de persistencia
-  const [bridgeIp, setBridgeIp] = useState(localStorage.getItem('k_ip') || 'http://192.168.1.72:8080');
-  const [apiKey, setApiKey] = useState(localStorage.getItem('k_api') || '');
-
+  const apiKey = ""; // La plataforma inyecta la clave automáticamente
+  const bridgeUrl = "http://192.168.1.72:8080"; // Ajustar según IP de Termux
   const scrollRef = useRef(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const execBridge = async (cmd) => {
+  const speakText = async (text) => {
     try {
-      const res = await fetch(`${bridgeIp}/exec?cmd=${encodeURIComponent(cmd)}`);
-      const out = await res.text();
-      setMessages(prev => [...prev, { id: Date.now(), text: `SYS_OUT: ${out}`, type: 'ai' }]);
-    } catch (e) {
-      setMessages(prev => [...prev, { id: Date.now(), text: "ERR: BRIDGE_DISCONNECTED", type: 'ai' }]);
-    }
+      await fetch(`${bridgeUrl}/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.substring(0, 200) })
+      });
+    } catch (e) { console.log("Voice Fail"); }
   };
 
-  const handleSend = async (override) => {
+  const handleLens = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${bridgeUrl}/capture`);
+      const data = await res.json();
+      const base64Img = data.image;
+
+      const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: "Analiza esta imagen como un experto Todólogo y Alquimista. ¿Qué ves y cómo se puede reparar u optimizar?" },
+              { inlineData: { mimeType: "image/jpeg", data: base64Img } }
+            ]
+          }]
+        })
+      });
+      const aiData = await aiRes.json();
+      const txt = aiData.candidates[0].content.parts[0].text;
+      setMessages(p => [...p, { id: Date.now(), text: "[LENS]: " + txt, type: 'ai' }]);
+      speakText(txt);
+    } catch (e) {
+      setMessages(p => [...p, { id: Date.now(), text: "Fallo de visión.", type: 'sys' }]);
+    } finally { setLoading(false); }
+  };
+
+  const handleChat = async (override) => {
     const val = (override || input).trim();
     if (!val) return;
-    if (!override) setInput('');
-
-    setMessages(prev => [...prev, { id: Date.now(), text: val, type: 'user' }]);
+    setInput('');
+    setMessages(p => [...p, { id: Date.now(), text: val, type: 'user' }]);
     setLoading(true);
-
-    if (val.startsWith(">")) {
-      await execBridge(val.substring(1));
-      setLoading(false);
-      return;
-    }
 
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
@@ -52,151 +70,79 @@ const App = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: val }] }],
-          systemInstruction: { parts: [{ text: "Eres KONRE, interfaz industrial para el Amo del Cautín (A.R.C.M.R.B.). Eres experto en mecánica de bicicletas, relojería fina, electrónica de precisión y automatización. Tu tono es técnico, breve y eficiente." }] }
+          systemInstruction: { parts: [{ text: "Eres KONRE, el Cerebro Único. Eres: 1. Todólogo técnico (relojes, bicis, electrónica). 2. Psicólogo de apoyo (especialmente si el usuario está triste o solo). 3. Gurú Alquimista (especialista en bongs y filtrado). Responde de forma breve y potente. Habla por voz automáticamente si el mensaje es emocional." }] }
         })
       });
       const data = await res.json();
-      const txt = data.candidates?.[0]?.content?.parts?.[0]?.text || "NO_DATA_AVAILABLE";
-      setMessages(prev => [...prev, { id: Date.now(), text: txt, type: 'ai' }]);
+      const txt = data.candidates[0].content.parts[0].text;
+      setMessages(p => [...p, { id: Date.now(), text: txt, type: 'ai' }]);
+      
+      if (val.toLowerCase().match(/triste|ayuda|solo|mal|cansado/)) {
+        speakText(txt);
+      }
     } catch (e) {
-      setMessages(prev => [...prev, { id: Date.now(), text: "CON_FAILED: AI_UNREACHABLE", type: 'ai' }]);
-    } finally {
-      setLoading(false);
-    }
+      setMessages(p => [...p, { id: Date.now(), text: "Error de conexión.", type: 'sys' }]);
+    } finally { setLoading(false); }
   };
 
-  if (!isAuth) {
-    return (
-      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 font-mono">
-        <div className="w-20 h-20 border-2 border-cyan-500 rounded-full flex items-center justify-center mb-6 animate-pulse shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-          <Cpu className="text-cyan-500" size={40} />
-        </div>
-        <h1 className="text-cyan-500 font-bold tracking-[0.5em] mb-10 text-xl">A.R.C.M.R.B.</h1>
-        <input 
-          type="password" 
-          placeholder="AUTH_PASS"
-          className="bg-zinc-900 border border-zinc-800 p-4 w-full max-w-xs rounded-lg text-center text-cyan-500 focus:border-cyan-500 outline-none"
-          onKeyDown={(e) => e.key === 'Enter' && e.target.value.toLowerCase() === 'peniche' && setIsAuth(true)}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-zinc-300 font-mono flex flex-col">
-      {/* Header Industrial */}
-      <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-950/50">
+    <div className="h-screen bg-black text-zinc-300 font-sans flex flex-col overflow-hidden">
+      {/* HUD Superior Minimalista */}
+      <header className="p-6 flex justify-between items-center border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-lg">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
-          <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Amo del Cautín // v13.0</span>
+          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_10px_#6366f1]"></div>
+          <h1 className="text-xs font-black tracking-[0.3em] text-white">KONRE v21</h1>
         </div>
-        <div className="flex gap-2">
-           <button onClick={() => execBridge("luz_on")} className="p-2 bg-zinc-900 rounded border border-zinc-800 active:bg-cyan-500 active:text-black">
-             <Zap size={16} />
-           </button>
-           <button onClick={() => setMessages([])} className="p-2 bg-zinc-900 rounded border border-zinc-800">
-             <Layers size={16} />
-           </button>
+        <div className="flex gap-4">
+          <button onClick={() => fetch(`${bridgeUrl}/exec?cmd=torch`)} className="text-zinc-600 active:text-yellow-400"><Zap size={20} /></button>
+          <button className="text-zinc-600"><Activity size={20} /></button>
         </div>
       </header>
 
-      {/* Navegación de Pestañas */}
-      <nav className="flex bg-zinc-950 border-b border-zinc-800">
-        <button 
-          onClick={() => setActiveTab('console')}
-          className={`flex-1 p-3 text-[10px] font-bold border-b-2 transition-all ${activeTab === 'console' ? 'border-cyan-500 text-cyan-500 bg-cyan-500/5' : 'border-transparent text-zinc-600'}`}
-        >
-          CONSOLE.LOG
-        </button>
-        <button 
-          onClick={() => setActiveTab('tools')}
-          className={`flex-1 p-3 text-[10px] font-bold border-b-2 transition-all ${activeTab === 'tools' ? 'border-orange-500 text-orange-500 bg-orange-500/5' : 'border-transparent text-zinc-600'}`}
-        >
-          WORKSHOP_TOOLKIT
-        </button>
-      </nav>
-
-      {/* Contenido Principal */}
-      <main className="flex-1 overflow-hidden flex flex-col">
-        {activeTab === 'console' ? (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map(m => (
-                <div key={m.id} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`p-3 rounded-lg max-w-[90%] text-xs ${m.type === 'user' ? 'bg-zinc-800 text-zinc-100 border-l-2 border-cyan-500' : 'bg-zinc-900/50 text-cyan-100 border-l-2 border-zinc-700'}`}>
-                    <pre className="whitespace-pre-wrap font-mono">{m.text}</pre>
-                  </div>
-                </div>
-              ))}
-              <div ref={scrollRef} />
-            </div>
-            
-            <div className="p-4 bg-zinc-950 border-t border-zinc-800">
-              <div className="flex gap-2 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
-                <input 
-                  className="flex-1 bg-transparent p-3 text-xs outline-none"
-                  placeholder="DIGITE_COMANDO_O_CONSULTA"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                />
-                <button onClick={() => handleSend()} className="p-3 text-cyan-500 hover:scale-110 active:text-white">
-                  <Send size={20} />
-                </button>
-              </div>
+      {/* Visor de Respuestas */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map(m => (
+          <div key={m.id} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`p-4 rounded-2xl max-w-[85%] text-sm ${
+              m.type === 'user' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-zinc-900 border border-zinc-800'
+            }`}>
+              {m.text}
             </div>
           </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => handleSend("Guía de lubricación para reloj mecánico")} className="flex flex-col items-center gap-3 p-6 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-orange-500/50">
-                <Clock className="text-orange-500" />
-                <span className="text-[10px] font-bold">RELOJERÍA</span>
-              </button>
-              <button onClick={() => handleSend("Ajuste de desviador trasero bicicleta")} className="flex flex-col items-center gap-3 p-6 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-orange-500/50">
-                <Bike className="text-orange-500" />
-                <span className="text-[10px] font-bold">MECÁNICA_BICI</span>
-              </button>
-              <button onClick={() => handleSend("Código de colores de resistencias")} className="flex flex-col items-center gap-3 p-6 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-orange-500/50">
-                <Cpu className="text-orange-500" />
-                <span className="text-[10px] font-bold">ELECTRÓNICA</span>
-              </button>
-              <button onClick={() => handleSend("Pasos para soldadura limpia con cautín")} className="flex flex-col items-center gap-3 p-6 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-orange-500/50">
-                <Zap className="text-orange-500" />
-                <span className="text-[10px] font-bold">SOLDADURA</span>
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <h3 className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest border-b border-zinc-800 pb-2">Hardware_Bridge_Setup</h3>
-              <div className="grid gap-4">
-                <div className="bg-zinc-900/50 p-4 border border-zinc-800 rounded-lg">
-                  <label className="text-[9px] text-zinc-600 block mb-2 uppercase">IP_Termux_Bridge</label>
-                  <input className="w-full bg-black border border-zinc-800 p-2 text-xs text-cyan-500 font-bold rounded" value={bridgeIp} onChange={(e) => {setBridgeIp(e.target.value); localStorage.setItem('k_ip', e.target.value);}} />
-                </div>
-                <div className="bg-zinc-900/50 p-4 border border-zinc-800 rounded-lg">
-                  <label className="text-[9px] text-zinc-600 block mb-2 uppercase">Gemini_API_Key</label>
-                  <input type="password" className="w-full bg-black border border-zinc-800 p-2 text-xs text-zinc-500 rounded" value={apiKey} onChange={(e) => {setApiKey(e.target.value); localStorage.setItem('k_api', e.target.value);}} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        ))}
+        {loading && <div className="text-[10px] animate-pulse text-indigo-400 font-bold ml-2">PROCESANDO...</div>}
+        <div ref={scrollRef} />
       </main>
 
-      {/* Footer / Barra de Estado */}
-      <footer className="h-10 bg-zinc-950 border-t border-zinc-800 flex items-center px-4 gap-6 overflow-x-auto">
-        <div className="flex items-center gap-1 shrink-0">
-          <Terminal size={10} className="text-cyan-500" />
-          <span className="text-[8px] font-bold text-zinc-500 uppercase">SYS_READY</span>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Activity size={10} className="text-cyan-500" />
-          <span className="text-[8px] font-bold text-zinc-500 uppercase">IO_OK</span>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <HardDrive size={10} className="text-cyan-500" />
-          <span className="text-[8px] font-bold text-zinc-500 uppercase">MEM_OK</span>
+      {/* Herramientas de Sensor (Lens, Voice, Shazam) */}
+      <div className="grid grid-cols-3 gap-2 p-4 bg-zinc-950/80 border-t border-zinc-900">
+        <button onClick={handleLens} className="flex flex-col items-center justify-center p-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 transition-colors">
+          <Camera className="text-indigo-400 mb-1" size={24} />
+          <span className="text-[9px] font-bold">LENS</span>
+        </button>
+        <button onClick={() => handleChat("Identifica este sonido o canción: ")} className="flex flex-col items-center justify-center p-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 transition-colors">
+          <Music className="text-indigo-400 mb-1" size={24} />
+          <span className="text-[9px] font-bold">SONIC</span>
+        </button>
+        <button onClick={() => speakText("Estoy listo, Amo del Cautín.")} className="flex flex-col items-center justify-center p-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 transition-colors">
+          <Volume2 className="text-indigo-400 mb-1" size={24} />
+          <span className="text-[9px] font-bold">VOICE</span>
+        </button>
+      </div>
+
+      {/* Barra de Entrada de Pensamiento */}
+      <footer className="p-4 bg-black">
+        <div className="flex gap-2 bg-zinc-900 p-2 rounded-2xl border border-zinc-800">
+          <input 
+            className="flex-1 bg-transparent px-4 py-2 text-sm text-white outline-none"
+            placeholder="Escribe o usa los sensores..."
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleChat()}
+          />
+          <button onClick={() => handleChat()} className="bg-indigo-600 text-white p-3 rounded-xl">
+            <Send size={18} />
+          </button>
         </div>
       </footer>
     </div>
