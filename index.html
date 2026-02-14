@@ -3,332 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KONRE // MASTER SYSTEM</title>
-    
-    <!-- NÚCLEO: React & Tailwind (Cargados para entorno APK/Webview) -->
+    <title>KONRE BLACK</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-
     <style>
-        /* FUENTES Y ESTÉTICA INDUSTRIAL */
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;800&display=swap');
-        
-        :root {
-            --verks-orange: #ff4500;
-            --psych-cyan: #00f2ff;
-            --deep-black: #050505;
-            --success-green: #00ff41;
-        }
-
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
         body { 
-            font-family: 'JetBrains+Mono', monospace; 
-            background: var(--deep-black); 
-            color: #e2e8f0;
-            margin: 0; 
-            overflow: hidden; /* Evita scroll en el body, solo en contenedores */
-            user-select: none; /* Sensación de App nativa */
-            -webkit-tap-highlight-color: transparent;
+            background-color: #000000; 
+            color: #ff4500; 
+            font-family: 'JetBrains+Mono', monospace;
+            margin: 0; padding: 0; overflow: hidden;
         }
-
-        /* EFECTO CRT (Monitor Viejo de Búnker) */
-        .crt-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
-            background-size: 100% 3px;
-            pointer-events: none;
-            z-index: 9999;
-            opacity: 0.15;
-        }
-
-        /* ANIMACIONES */
-        .fade-enter { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
-        .pulse-status { animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-
-        /* SCROLLBAR PERSONALIZADO */
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
-        .custom-scroll::-webkit-scrollbar-thumb:hover { background: var(--verks-orange); }
-
-        /* ESTILOS DINÁMICOS */
-        .border-theme-core { border-color: rgba(255, 69, 0, 0.3); }
-        .text-theme-core { color: var(--verks-orange); }
-        .bg-theme-core { background-color: rgba(255, 69, 0, 0.1); }
-
-        .border-theme-psych { border-color: rgba(0, 242, 255, 0.3); }
-        .text-theme-psych { color: var(--psych-cyan); }
-        .bg-theme-psych { background-color: rgba(0, 242, 255, 0.1); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        input:focus { outline: none; border-color: #ff4500 !important; }
+        .msg-anim { animation: fadeInUp 0.2s ease-out; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
     <div id="root"></div>
-    <div class="crt-overlay"></div>
-
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-        const { ShieldCheck, Cpu, Terminal, Database, Send, Globe, Trash2, Download, Settings, Mic, Camera } = lucide;
 
-        // --- SISTEMA KONRE v4.0 (AUDITADO) ---
         const App = () => {
-            // ESTADOS DEL SISTEMA
             const [isAuth, setIsAuth] = useState(false);
-            const [passKey, setPassKey] = useState("");
-            const [view, setView] = useState("chat"); // chat, vault, config
+            const [view, setView] = useState("chat");
             const [messages, setMessages] = useState([]);
-            const [userInput, setUserInput] = useState("");
-            const [isProcessing, setIsProcessing] = useState(false);
-            const [records, setRecords] = useState([]);
-            const [mode, setMode] = useState("CORE"); // CORE (Ingeniería) | PSYCH (Psicología)
-            const [uptime, setUptime] = useState(0);
-            
-            // REFS (Para control directo del DOM)
+            const [input, setInput] = useState("");
+            const [isTyping, setIsTyping] = useState(false);
             const chatEndRef = useRef(null);
-            const inputRef = useRef(null);
-            const timerRef = useRef(null);
 
-            // 1. INICIALIZACIÓN Y PERSISTENCIA (Revisión: OK)
+            // Cargar datos al inicio
             useEffect(() => {
-                // Cargar datos blindados
-                try {
-                    const savedRecords = localStorage.getItem('konre_vault');
-                    const savedHistory = localStorage.getItem('konre_chat_history');
-                    if (savedRecords) setRecords(JSON.parse(savedRecords));
-                    if (savedHistory) setMessages(JSON.parse(savedHistory));
-                    else setMessages([{ id: Date.now(), role: "system", text: "SISTEMA KONRE v4.0 ONLINE. Esperando comando." }]);
-                } catch (e) { console.error("Error crítico de memoria local"); }
-
-                // Timer de Uptime
-                timerRef.current = setInterval(() => setUptime(p => p + 1), 1000);
-                return () => clearInterval(timerRef.current);
+                const history = localStorage.getItem('konre_history');
+                if (history) setMessages(JSON.parse(history));
+                else setMessages([{ id: 1, text: "KONRE v4.6 ONLINE. Búnker de Dilan protegido.", type: "ai" }]);
             }, []);
 
-            // Guardado automático
+            // Auto-scroll
             useEffect(() => {
-                localStorage.setItem('konre_vault', JSON.stringify(records));
-                localStorage.setItem('konre_chat_history', JSON.stringify(messages));
                 chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-            }, [records, messages]);
+                localStorage.setItem('konre_history', JSON.stringify(messages));
+            }, [messages]);
 
-            // Auto-focus inteligente
-            useEffect(() => {
-                if (isAuth && view === 'chat') setTimeout(() => inputRef.current?.focus(), 100);
-            }, [isAuth, view]);
-
-            // 2. SISTEMA DE VOZ (TTS) (Revisión: OK - Detecta idioma)
-            const speak = (text) => {
-                window.speechSynthesis.cancel();
-                const u = new SpeechSynthesisUtterance(text);
-                // Detección simple de idioma basada en palabras clave
-                const isEnglish = /\b(the|is|engine|hardware|check)\b/i.test(text);
-                u.lang = isEnglish ? 'en-US' : 'es-MX';
+            const sendMessage = async () => {
+                if (!input.trim()) return;
+                const userMsg = input;
+                setInput("");
+                setMessages(prev => [...prev, { id: Date.now(), text: userMsg, type: "user" }]);
                 
-                // Modulación de voz según el modo
-                if (mode === "PSYCH") {
-                    u.pitch = 1.1; u.rate = 0.9; // Empático
-                } else {
-                    u.pitch = 0.6; u.rate = 0.9; // Industrial/Pesado
-                }
-                window.speechSynthesis.speak(u);
-            };
-
-            // 3. COMANDOS DE ADMINISTRADOR (MEJORA v4.0)
-            const handleCommand = (cmd) => {
-                const command = cmd.toLowerCase().trim();
-                switch(command) {
-                    case '/clear':
-                        setMessages([{ id: Date.now(), role: "system", text: "Historial purgado por el operador." }]);
-                        return true;
-                    case '/export':
-                        const blob = new Blob([JSON.stringify(records, null, 2)], {type : 'application/json'});
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url; a.download = `konre_vault_backup_${Date.now()}.json`;
-                        a.click();
-                        addMsg("KONRE", "Copia de seguridad del Búnker generada.", "ai");
-                        return true;
-                    case '/psych':
-                        setMode("PSYCH");
-                        addMsg("PSIQUE", "Módulo Psicológico activado. Estoy aquí para escucharte, Dilan.", "ai");
-                        return true;
-                    case '/core':
-                        setMode("CORE");
-                        addMsg("KONRE", "Módulo de Ingeniería reactivado. Volvamos al trabajo.", "ai");
-                        return true;
-                    default:
-                        return false;
-                }
-            };
-
-            // 4. MOTOR DE IA (GEMINI GROUNDED)
-            const handleSend = async () => {
-                if (!userInput.trim()) return;
-                
-                // Verificar si es comando
-                if (userInput.startsWith("/")) {
-                    if (handleCommand(userInput)) {
-                        setUserInput("");
+                // Soporte Termux (Prefijo >)
+                if (userMsg.startsWith(">")) {
+                    const termuxUrl = localStorage.getItem('termux_url');
+                    if (!termuxUrl) {
+                        setMessages(prev => [...prev, { id: Date.now(), text: "Configura la URL de Termux en Ajustes.", type: "ai" }]);
                         return;
                     }
-                }
-
-                // Validación de seguridad (Regex)
-                if (!/^[a-zA-Z0-9\s¿?¡!.,\-\/_áéíóúÁÉÍÓÚñÑ]*$/.test(userInput)) {
-                    addMsg("SISTEMA", "Caracteres ilegales detectados. Entrada bloqueada.", "system");
-                    setUserInput("");
+                    try {
+                        await fetch(`${termuxUrl}/exec?cmd=${encodeURIComponent(userMsg.substring(1))}`, { mode: 'no-cors' });
+                        setMessages(prev => [...prev, { id: Date.now(), text: "Comando enviado a Termux.", type: "ai" }]);
+                    } catch (e) {
+                        setMessages(prev => [...prev, { id: Date.now(), text: "Error de conexión con Termux.", type: "ai" }]);
+                    }
                     return;
                 }
 
-                const query = userInput;
-                addMsg("DILAN", query, "user");
-                setUserInput("");
-                setIsProcessing(true);
-
+                setIsTyping(true);
                 try {
-                    // API Key inyectada localmente por seguridad
-                    const key = localStorage.getItem('konre_api_key') || "";
-                    if (!key) throw new Error("FALTA_LLAVE");
+                    const apiKey = localStorage.getItem('gemini_key');
+                    if (!apiKey) {
+                        setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ ERROR: Falta API KEY en Ajustes.", type: "ai" }]);
+                        setIsTyping(false);
+                        return;
+                    }
 
-                    const sysPrompt = mode === "CORE" 
-                        ? `Eres KONRE, autómata de ingeniería. Experto en hardware, bongs, bicicletas y mecánica. Responde rudo, técnico y veraz. Usa Google Search.`
-                        : `Eres PSIQUE, módulo de salud mental. Eres empático, analítico y profesional. Apoya a Dilan con el estrés del taller.`;
-
-                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`, {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: query }] }],
-                            systemInstruction: { parts: [{ text: sysPrompt }] },
-                            tools: [{ google_search: {} }]
-                        })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: userMsg }] }] })
                     });
-
                     const data = await res.json();
-                    const txt = data.candidates?.[0]?.content?.parts?.[0]?.text || "Error de cálculo en el núcleo.";
-                    const sources = data.candidates?.[0]?.groundingMetadata?.groundingAttributions || [];
-
-                    addMsg(mode === "CORE" ? "KONRE" : "PSIQUE", txt, "ai", sources);
-                    speak(txt);
-
+                    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No hay respuesta del núcleo.";
+                    setMessages(prev => [...prev, { id: Date.now(), text: responseText, type: "ai" }]);
                 } catch (e) {
-                    if (e.message === "FALTA_LLAVE") addMsg("SISTEMA", "ERROR: Configura tu API KEY en Ajustes.", "system");
-                    else addMsg("SISTEMA", "Fallo de enlace neuronal. Reintentando...", "system");
+                    setMessages(prev => [...prev, { id: Date.now(), text: "Fallo de red. Revisa tu conexión.", type: "ai" }]);
                 } finally {
-                    setIsProcessing(false);
-                    setTimeout(() => inputRef.current?.focus(), 100);
+                    setIsTyping(false);
                 }
             };
 
-            const addMsg = (sender, text, role, sources = []) => {
-                setMessages(prev => [...prev, { id: Date.now(), role, sender, text, sources }]);
-            };
-
-            // VISTAS
             if (!isAuth) return (
-                <div className="h-screen flex flex-col items-center justify-center bg-black p-6">
-                    <div className="w-full max-w-sm border border-orange-900/30 p-8 rounded-3xl bg-zinc-950 text-center space-y-6 shadow-2xl shadow-orange-900/10">
-                        <h1 className="text-4xl font-black italic text-orange-600 tracking-tighter">KONRE v4.0</h1>
-                        <p className="text-[9px] uppercase tracking-[0.4em] text-zinc-500">Security Access Level 5</p>
+                <div className="h-screen flex items-center justify-center bg-black">
+                    <div className="text-center space-y-4">
+                        <h1 className="text-3xl font-bold tracking-tighter italic">KONRE BLACK</h1>
                         <input 
-                            type="password"
-                            value={passKey}
-                            onChange={(e) => setPassKey(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && passKey.toLowerCase() === 'peniche' && setIsAuth(true)}
-                            placeholder="LLAVE MAESTRA"
-                            className="w-full bg-black border border-orange-900/50 p-4 rounded-xl text-center text-orange-500 focus:outline-none tracking-[0.5em] font-bold"
+                            type="password" 
+                            placeholder="LLAVE"
+                            className="bg-black border border-zinc-800 p-3 rounded-lg text-center text-orange-600 w-64"
+                            onKeyDown={e => e.key === 'Enter' && e.target.value.toLowerCase() === 'peniche' && setIsAuth(true)}
                         />
-                        <button onClick={() => passKey.toLowerCase() === 'peniche' && setIsAuth(true)} className="w-full py-4 bg-orange-600/10 border border-orange-600 text-orange-600 rounded-xl font-black text-xs uppercase hover:bg-orange-600 hover:text-black transition-all">Desbloquear</button>
                     </div>
                 </div>
             );
 
             return (
-                <div className="h-screen flex flex-col bg-zinc-950">
-                    {/* HEADER TÁCTICO */}
-                    <header className={`p-4 border-b flex justify-between items-center bg-black/80 backdrop-blur-md ${mode === 'CORE' ? 'border-orange-900/30' : 'border-cyan-900/30'}`}>
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg border ${mode === 'CORE' ? 'border-orange-500 text-orange-500' : 'border-cyan-500 text-cyan-500'}`}>
-                                <Cpu size={20} />
-                            </div>
-                            <div>
-                                <h2 className={`text-[10px] font-black tracking-widest ${mode === 'CORE' ? 'text-orange-500' : 'text-cyan-400'}`}>
-                                    {mode === 'CORE' ? 'KONRE // ENG' : 'PSIQUE // MENT'}
-                                </h2>
-                                <p className="text-[7px] text-zinc-600 uppercase font-bold">Uptime: {Math.floor(uptime / 60)}m {uptime % 60}s</p>
-                            </div>
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => setView('chat')} className={`p-2 rounded-lg transition-all ${view === 'chat' ? (mode === 'CORE' ? 'bg-orange-600 text-black' : 'bg-cyan-600 text-black') : 'bg-zinc-900 text-zinc-500'}`}><Terminal size={16} /></button>
-                            <button onClick={() => setView('vault')} className={`p-2 rounded-lg transition-all ${view === 'vault' ? (mode === 'CORE' ? 'bg-orange-600 text-black' : 'bg-cyan-600 text-black') : 'bg-zinc-900 text-zinc-500'}`}><Database size={16} /></button>
-                            <button onClick={() => setView('config')} className={`p-2 rounded-lg transition-all ${view === 'config' ? (mode === 'CORE' ? 'bg-orange-600 text-black' : 'bg-cyan-600 text-black') : 'bg-zinc-900 text-zinc-500'}`}><Settings size={16} /></button>
-                        </div>
+                <div className="h-screen flex flex-col bg-black">
+                    <header className="p-4 pt-12 border-b border-zinc-900 flex justify-between items-center">
+                        <span className="font-bold text-xs">KONRE // DILAN</span>
+                        <button onClick={() => setView(view === "chat" ? "config" : "chat")} className="text-[10px] border border-zinc-800 px-2 py-1 rounded">
+                            {view === "chat" ? "AJUSTES" : "VOLVER"}
+                        </button>
                     </header>
 
-                    {/* ÁREA PRINCIPAL */}
-                    <main className="flex-1 overflow-hidden relative">
-                        {view === 'chat' && (
-                            <div className="h-full flex flex-col">
-                                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll">
-                                    {messages.map((m) => (
-                                        <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} fade-enter`}>
-                                            <div className={`p-4 rounded-2xl max-w-[88%] text-[11px] leading-relaxed border ${
-                                                m.role === 'user' 
-                                                ? 'bg-zinc-900 border-zinc-800 text-zinc-300 rounded-tr-none' 
-                                                : m.role === 'system'
-                                                ? 'w-full text-center border-none text-[9px] opacity-50 uppercase'
-                                                : mode === 'CORE' 
-                                                    ? 'bg-orange-950/10 border-orange-900/30 text-orange-100 rounded-tl-none' 
-                                                    : 'bg-cyan-950/10 border-cyan-900/30 text-cyan-100 rounded-tl-none'
-                                            }`}>
+                    <main className="flex-1 overflow-hidden">
+                        {view === "chat" ? (
+                            <div className="h-full flex flex-col p-4">
+                                <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar">
+                                    {messages.map(m => (
+                                        <div key={m.id} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'} msg-anim`}>
+                                            <div className={`p-3 rounded-xl max-w-[85%] text-sm border ${m.type === 'user' ? 'bg-orange-600 text-black border-orange-500 font-bold' : 'bg-zinc-900 border-zinc-800 text-white'}`}>
                                                 {m.text}
-                                                {m.sources && m.sources.length > 0 && (
-                                                    <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-2">
-                                                        {m.sources.map((s, i) => (
-                                                            <a key={i} href={s.web.uri} target="_blank" className="text-[8px] bg-black/40 px-2 py-1 rounded hover:bg-white/10 transition-colors flex items-center gap-1">
-                                                                <Globe size={8} /> {s.web.title.substring(0, 15)}...
-                                                            </a>
-                                                        ))}
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     ))}
+                                    {isTyping && <div className="text-[10px] animate-pulse">KONRE procesando...</div>}
                                     <div ref={chatEndRef} />
                                 </div>
-                                <div className="p-4 border-t border-white/5 bg-black/40">
-                                    {isProcessing && <div className="text-[9px] text-zinc-500 mb-2 animate-pulse flex items-center gap-2"><Cpu size={10}/> PROCESANDO DATOS...</div>}
-                                    <div className="flex gap-2">
-                                        <input 
-                                            ref={inputRef}
-                                            value={userInput}
-                                            onChange={(e) => setUserInput(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                            className={`flex-1 bg-zinc-900 border rounded-xl px-4 py-3 text-xs outline-none transition-all ${mode === 'CORE' ? 'border-orange-900/30 focus:border-orange-500 text-orange-500' : 'border-cyan-900/30 focus:border-cyan-500 text-cyan-500'}`}
-                                            placeholder={mode === 'CORE' ? "Comando de ingeniería..." : "Cuéntame qué pasa..."}
-                                        />
-                                        <button onClick={handleSend} className={`p-3 rounded-xl text-black transition-transform active:scale-95 ${mode === 'CORE' ? 'bg-orange-600 hover:bg-orange-500' : 'bg-cyan-600 hover:bg-cyan-500'}`}>
-                                            <Send size={18} />
-                                        </button>
-                                    </div>
+                                <div className="mt-4 flex gap-2">
+                                    <input 
+                                        className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white"
+                                        placeholder="Comando..."
+                                        value={input}
+                                        onChange={e => setInput(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                                    />
+                                    <button onClick={sendMessage} className="bg-orange-600 text-black px-4 rounded-lg font-bold">></button>
                                 </div>
                             </div>
-                        )}
-
-                        {view === 'vault' && (
-                            <div className="p-6 h-full overflow-y-auto custom-scroll">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className={`text-xs font-black uppercase ${mode === 'CORE' ? 'text-orange-500' : 'text-cyan-500'}`}>Bóveda de Proyectos</h3>
-                                    <button onClick={() => {
-                                        const t = prompt("PROYECTO:"); const s = prompt("SPECS:");
-                                        if(t && s) setRecords([...records, {id: Date.now(), title: t, specs: s, date: new Date().toLocaleDateString()}]);
-                                    }} className="bg-zinc-800 px-3 py-1 rounded text-[9px] hover:bg-white/10 transition-all">+ NUEVO</button>
+                        ) : (
+                            <div className="p-6 space-y-6">
+                                <h2 className="text-sm font-bold">CONFIGURACIÓN</h2>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] block opacity-50">GEMINI API KEY</label>
+                                    <input 
+                                        type="password"
+                                        className="w-full bg-zinc-900 border border-zinc-800 p-3 rounded-lg text-xs"
+                                        onChange={e => localStorage.setItem('gemini_key', e.target.value)}
+                                        placeholder="AIza..."
+                                    />
                                 </div>
-                                <div className="grid gap-4">
-                                    {records.map(r => (
-                                        <div key={r.id} className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl relative group">
-                                            <button onClick={() => setRecords(records.filter(x => x.id !== r.id))} className="absolute top-4 right-4 text-zinc-600 hover:text-red-500"><Trash2 size={14}/></button>
-                                            <span className="text-[8px] font-bold text-zinc-600 uppercase mb-1 block">{r.date}</s
+                                <div className="space-y-2">
+                                    <label className="text-[10px] block opacity-50">TERMUX URL</label>
+                                    <input 
+                                        className="w-full bg-zinc-900 border border-zinc-800 p-3 rounded-lg text-xs"
+                                        onChange={e => localStorage.setItem('termux_url', e.target.value)}
+                                        placeholder="http://127.0.0.1:8080"
+                                    />
+                                </div>
+                                <button 
+                                    onClick={() => {localStorage.clear(); window.location.reload();}}
+                                    className="text-[10px] text-red-500 border border-red-900/30 px-4 py-2 rounded"
+                                >
+                                    PURGAR SISTEMA (Reset)
+                                </button>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
