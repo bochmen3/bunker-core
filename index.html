@@ -7,7 +7,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
 
-  // Reemplaza con la IP de tu Termux (ej: http://192.168.1.XX:8080)
+  // Configuración de enlace con Termux
   const bridgeUrl = "http://192.168.1.72:8080";
   const apiKey = ""; 
 
@@ -22,7 +22,9 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.substring(0, 250) })
       });
-    } catch (e) { console.log("Bridge Offline"); }
+    } catch (e) {
+      console.log("Bridge Offline");
+    }
   };
 
   const handleAction = async (type, customInput = "") => {
@@ -49,7 +51,7 @@ export default function App() {
       });
 
       const data = await response.json();
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta.";
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta del núcleo.";
       
       setMessages(prev => [...prev, { role: 'ai', content: aiResponse }]);
 
@@ -57,7 +59,7 @@ export default function App() {
         speak(aiResponse);
       }
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'ai', content: "Error de enlace." }]);
+      setMessages(prev => [...prev, { role: 'ai', content: "Error de enlace neural." }]);
     } finally {
       setLoading(false);
     }
