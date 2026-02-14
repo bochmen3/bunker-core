@@ -3,105 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KONRE BLACK</title>
+    <title>KONRE MASTER SYSTEM</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;800&display=swap');
         body { 
             background-color: #000000; 
             color: #ff4500; 
             font-family: 'JetBrains+Mono', monospace;
-            margin: 0; padding: 0; overflow: hidden;
+            margin: 0; overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        input:focus { outline: none; border-color: #ff4500 !important; }
-        .msg-anim { animation: fadeInUp 0.2s ease-out; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .bg-oled { background-color: #000000 !important; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .msg-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Efecto de onda de voz */
+        .voice-wave {
+            display: flex; gap: 2px; align-items: center;
+        }
+        .bar { width: 2px; background: #ff4500; animation: wave 1s infinite ease-in-out; }
+        @keyframes wave { 0%, 100% { height: 4px; } 50% { height: 12px; } }
     </style>
 </head>
 <body>
     <div id="root"></div>
+
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+        const { Camera, Image, Send, Settings, Volume2, VolumeX, X, Zap, Cpu } = lucide;
 
         const App = () => {
             const [isAuth, setIsAuth] = useState(false);
-            const [view, setView] = useState("chat");
+            const [view, setView] = useState('chat');
             const [messages, setMessages] = useState([]);
-            const [input, setInput] = useState("");
-            const [isTyping, setIsTyping] = useState(false);
-            const chatEndRef = useRef(null);
+            const [input, setInput] = useState('');
+            const [isThinking, setIsThinking] = useState(false);
+            const [selectedImage, setSelectedImage] = useState(null);
+            const [isMuted, setIsMuted] = useState(false);
+            const scrollRef = useRef(null);
+            const fileInputRef = useRef(null);
 
-            // Cargar datos al inicio
             useEffect(() => {
-                const history = localStorage.getItem('konre_history');
-                if (history) setMessages(JSON.parse(history));
-                else setMessages([{ id: 1, text: "KONRE v4.6 ONLINE. Búnker de Dilan protegido.", type: "ai" }]);
+                const hist = localStorage.getItem('konre_v55_history');
+                if (hist) setMessages(JSON.parse(hist));
+                else setMessages([{ id: 1, text: "KONRE v5.5 ONLINE. Visión y Voz sincronizadas. ¿Qué órdenes tienes hoy, Dilan?", type: "ai" }]);
             }, []);
 
-            // Auto-scroll
             useEffect(() => {
-                chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-                localStorage.setItem('konre_history', JSON.stringify(messages));
+                localStorage.setItem('konre_v55_history', JSON.stringify(messages));
+                scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
             }, [messages]);
 
-            const sendMessage = async () => {
-                if (!input.trim()) return;
-                const userMsg = input;
-                setInput("");
-                setMessages(prev => [...prev, { id: Date.now(), text: userMsg, type: "user" }]);
-                
-                // Soporte Termux (Prefijo >)
-                if (userMsg.startsWith(">")) {
-                    const termuxUrl = localStorage.getItem('termux_url');
-                    if (!termuxUrl) {
-                        setMessages(prev => [...prev, { id: Date.now(), text: "Configura la URL de Termux en Ajustes.", type: "ai" }]);
-                        return;
-                    }
-                    try {
-                        await fetch(`${termuxUrl}/exec?cmd=${encodeURIComponent(userMsg.substring(1))}`, { mode: 'no-cors' });
-                        setMessages(prev => [...prev, { id: Date.now(), text: "Comando enviado a Termux.", type: "ai" }]);
-                    } catch (e) {
-                        setMessages(prev => [...prev, { id: Date.now(), text: "Error de conexión con Termux.", type: "ai" }]);
-                    }
-                    return;
-                }
+            // --- NÚCLEO DE VOZ (TTS) ---
+            const speak = (text) => {
+                if (isMuted) return;
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-MX';
+                utterance.pitch = 0.7; // Voz más grave/industrial
+                utterance.rate = 1.0;
+                window.speechSynthesis.speak(utterance);
+            };
 
-                setIsTyping(true);
+            const handleImageSelect = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setSelectedImage(reader.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleSend = async () => {
+                if (!input.trim() && !selectedImage) return;
+                
+                const userText = input;
+                const userImg = selectedImage;
+                setInput('');
+                setSelectedImage(null);
+
+                setMessages(prev => [...prev, { 
+                    id: Date.now(), 
+                    text: userText, 
+                    image: userImg,
+                    type: 'user' 
+                }]);
+
+                setIsThinking(true);
                 try {
-                    const apiKey = localStorage.getItem('gemini_key');
-                    if (!apiKey) {
-                        setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ ERROR: Falta API KEY en Ajustes.", type: "ai" }]);
-                        setIsTyping(false);
-                        return;
+                    const apiKey = localStorage.getItem('konre_key');
+                    if (!apiKey) throw new Error("Falta API Key");
+
+                    let payload;
+                    if (userImg) {
+                        const base64Data = userImg.split(',')[1];
+                        payload = {
+                            contents: [{
+                                parts: [
+                                    { text: userText || "Analiza esta imagen." },
+                                    { inlineData: { mimeType: "image/png", data: base64Data } }
+                                ]
+                            }]
+                        };
+                    } else {
+                        payload = {
+                            contents: [{ parts: [{ text: userText }] }],
+                            systemInstruction: { parts: [{ text: "Eres KONRE, la inteligencia artificial ruda y técnica del búnker de Dilan. Responde de forma concisa y profesional." }] }
+                        };
                     }
 
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ contents: [{ parts: [{ text: userMsg }] }] })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
                     });
+
                     const data = await res.json();
-                    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No hay respuesta del núcleo.";
-                    setMessages(prev => [...prev, { id: Date.now(), text: responseText, type: "ai" }]);
+                    const aiTxt = data.candidates?.[0]?.content?.parts?.[0]?.text || "Fallo en la respuesta.";
+                    
+                    setMessages(prev => [...prev, { id: Date.now(), text: aiTxt, type: 'ai' }]);
+                    speak(aiTxt); // <--- KONRE HABLA
+
                 } catch (e) {
-                    setMessages(prev => [...prev, { id: Date.now(), text: "Fallo de red. Revisa tu conexión.", type: "ai" }]);
+                    const errorMsg = "Error de enlace. Revisa la llave en configuración.";
+                    setMessages(prev => [...prev, { id: Date.now(), text: errorMsg, type: 'ai' }]);
+                    speak(errorMsg);
                 } finally {
-                    setIsTyping(false);
+                    setIsThinking(false);
                 }
             };
 
             if (!isAuth) return (
                 <div className="h-screen flex items-center justify-center bg-black">
-                    <div className="text-center space-y-4">
-                        <h1 className="text-3xl font-bold tracking-tighter italic">KONRE BLACK</h1>
+                    <div className="text-center space-y-6 w-full max-w-xs p-6">
+                        <div className="flex justify-center mb-4"><Cpu size={48} className="text-orange-600 animate-pulse" /></div>
+                        <h1 className="text-4xl font-black italic tracking-tighter">KONRE v5.5</h1>
                         <input 
                             type="password" 
-                            placeholder="LLAVE"
-                            className="bg-black border border-zinc-800 p-3 rounded-lg text-center text-orange-600 w-64"
+                            placeholder="LLAVE MAESTRA"
+                            className="w-full bg-zinc-900 border border-orange-900/40 p-4 rounded-2xl text-center text-orange-500 font-bold outline-none focus:border-orange-500 transition-all"
                             onKeyDown={e => e.key === 'Enter' && e.target.value.toLowerCase() === 'peniche' && setIsAuth(true)}
                         />
                     </div>
@@ -109,65 +156,87 @@
             );
 
             return (
-                <div className="h-screen flex flex-col bg-black">
-                    <header className="p-4 pt-12 border-b border-zinc-900 flex justify-between items-center">
-                        <span className="font-bold text-xs">KONRE // DILAN</span>
-                        <button onClick={() => setView(view === "chat" ? "config" : "chat")} className="text-[10px] border border-zinc-800 px-2 py-1 rounded">
-                            {view === "chat" ? "AJUSTES" : "VOLVER"}
-                        </button>
+                <div className="h-screen flex flex-col bg-oled">
+                    <header className="p-6 pt-12 border-b border-zinc-900 flex justify-between items-center bg-black/80 backdrop-blur-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="voice-wave">
+                                {[1,2,3,4].map(i => <div key={i} className="bar" style={{animationDelay: `${i*0.1}s`}}></div>)}
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Bünker Audio-Visual</span>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setIsMuted(!isMuted)} className="p-2 bg-zinc-900 rounded-lg border border-zinc-800 text-zinc-400">
+                                {isMuted ? <VolumeX size={18}/> : <Volume2 size={18} className="text-orange-500"/>}
+                            </button>
+                            <button onClick={() => setView(view === 'chat' ? 'cfg' : 'chat')} className="p-2 bg-zinc-900 rounded-lg border border-zinc-800">
+                                <Settings size={18}/>
+                            </button>
+                        </div>
                     </header>
 
-                    <main className="flex-1 overflow-hidden">
-                        {view === "chat" ? (
-                            <div className="h-full flex flex-col p-4">
-                                <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar">
+                    <main className="flex-1 overflow-hidden relative">
+                        {view === 'chat' ? (
+                            <div className="h-full flex flex-col">
+                                <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scroll">
                                     {messages.map(m => (
-                                        <div key={m.id} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'} msg-anim`}>
-                                            <div className={`p-3 rounded-xl max-w-[85%] text-sm border ${m.type === 'user' ? 'bg-orange-600 text-black border-orange-500 font-bold' : 'bg-zinc-900 border-zinc-800 text-white'}`}>
+                                        <div key={m.id} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'} msg-in`}>
+                                            <div className={`p-4 rounded-2xl max-w-[92%] text-[13px] leading-relaxed border ${m.type === 'user' ? 'bg-orange-600 text-black border-orange-400 font-bold rounded-tr-none' : 'bg-zinc-950 border-zinc-900 text-zinc-200 rounded-tl-none shadow-lg shadow-black'}`}>
+                                                {m.image && <img src={m.image} className="w-full rounded-lg mb-2 border border-black/30" />}
                                                 {m.text}
                                             </div>
                                         </div>
                                     ))}
-                                    {isTyping && <div className="text-[10px] animate-pulse">KONRE procesando...</div>}
-                                    <div ref={chatEndRef} />
+                                    {isThinking && <div className="text-[10px] animate-pulse italic flex items-center gap-2"><Cpu size={10}/> Procesando...</div>}
+                                    <div ref={scrollRef} />
                                 </div>
-                                <div className="mt-4 flex gap-2">
-                                    <input 
-                                        className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white"
-                                        placeholder="Comando..."
-                                        value={input}
-                                        onChange={e => setInput(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                                    />
-                                    <button onClick={sendMessage} className="bg-orange-600 text-black px-4 rounded-lg font-bold">></button>
+
+                                {selectedImage && (
+                                    <div className="px-4 py-2 flex items-center gap-3 bg-zinc-900/50 border-t border-zinc-800">
+                                        <div className="relative">
+                                            <img src={selectedImage} className="h-16 w-16 object-cover rounded-xl border-2 border-orange-600" />
+                                            <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1"><X size={10}/></button>
+                                        </div>
+                                        <span className="text-[9px] font-bold uppercase opacity-60">Listo para escaneo visual</span>
+                                    </div>
+                                )}
+
+                                <div className="p-4 flex gap-2 items-end bg-black">
+                                    <button onClick={() => fileInputRef.current.click()} className="p-4 bg-zinc-900 rounded-2xl text-zinc-400 border border-zinc-800 active:scale-95 transition-all">
+                                        <Camera size={20} />
+                                    </button>
+                                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageSelect} />
+                                    
+                                    <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl flex items-center px-4">
+                                        <input 
+                                            className="w-full bg-transparent py-4 text-sm text-white focus:outline-none"
+                                            placeholder="Órdenes o fotos..."
+                                            value={input}
+                                            onChange={e => setInput(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleSend()}
+                                        />
+                                    </div>
+                                    <button onClick={handleSend} className="p-4 bg-orange-600 text-black rounded-2xl font-black active:scale-95 transition-all">
+                                        <Send size={20} />
+                                    </button>
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-6 space-y-6">
-                                <h2 className="text-sm font-bold">CONFIGURACIÓN</h2>
+                            <div className="p-8 space-y-8 h-full overflow-y-auto hide-scroll pb-24">
+                                <h2 className="text-xs font-black uppercase tracking-widest border-b border-zinc-900 pb-2">Núcleo Central</h2>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] block opacity-50">GEMINI API KEY</label>
+                                    <label className="text-[10px] opacity-50 uppercase font-bold">Google API Key</label>
                                     <input 
                                         type="password"
-                                        className="w-full bg-zinc-900 border border-zinc-800 p-3 rounded-lg text-xs"
-                                        onChange={e => localStorage.setItem('gemini_key', e.target.value)}
+                                        className="w-full bg-zinc-900 border border-zinc-800 p-4 rounded-2xl text-xs text-white"
+                                        defaultValue={localStorage.getItem('konre_key')}
+                                        onChange={e => localStorage.setItem('konre_key', e.target.value)}
                                         placeholder="AIza..."
                                     />
+                                    <p className="text-[8px] text-zinc-600 italic">Obligatorio para visión y procesamiento de lenguaje.</p>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] block opacity-50">TERMUX URL</label>
-                                    <input 
-                                        className="w-full bg-zinc-900 border border-zinc-800 p-3 rounded-lg text-xs"
-                                        onChange={e => localStorage.setItem('termux_url', e.target.value)}
-                                        placeholder="http://127.0.0.1:8080"
-                                    />
+                                <div className="pt-10">
+                                    <button onClick={() => {if(confirm("¿Reiniciar sistema?")) {localStorage.clear(); window.location.reload();}}} className="w-full border border-red-900/30 text-red-600 py-4 rounded-2xl text-[10px] font-bold uppercase">Purgar Datos</button>
                                 </div>
-                                <button 
-                                    onClick={() => {localStorage.clear(); window.location.reload();}}
-                                    className="text-[10px] text-red-500 border border-red-900/30 px-4 py-2 rounded"
-                                >
-                                    PURGAR SISTEMA (Reset)
-                                </button>
                             </div>
                         )}
                     </main>
