@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Brain, Camera, Music, Send, Volume2, Zap, Target, Activity } from 'lucide-react';
+import { Brain, Camera, Music, Send, Volume2, Zap, Target, Activity, Heart } from 'lucide-react';
 
-export default function App() {
+const App = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
 
-  // Reemplaza con la IP que te da Termux
+  // Configuración del enlace con Termux
   const bridgeUrl = "http://192.168.1.72:8080";
   const apiKey = ""; 
 
@@ -15,19 +15,22 @@ export default function App() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const runBridge = async (cmd) => {
+  const speak = async (text) => {
     try {
-      const res = await fetch(`${bridgeUrl}/exec?cmd=${cmd}`);
-      return await res.text();
-    } catch (e) { return "Bridge Offline"; }
+      await fetch(`${bridgeUrl}/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.substring(0, 250) })
+      });
+    } catch (e) { console.log("Termux offline"); }
   };
 
-  const handleSend = async (type = 'chat', customInput = '') => {
-    const textToSend = customInput || input;
-    if (!textToSend.trim() && type === 'chat') return;
+  const handleAction = async (type, customText = "") => {
+    const val = customText || input;
+    if (!val.trim() && type === 'chat') return;
 
     if (type === 'chat') {
-      setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+      setMessages(prev => [...prev, { role: 'user', content: val }]);
       setInput('');
     }
     
@@ -38,104 +41,105 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: textToSend }] }],
+          contents: [{ parts: [{ text: val }] }],
           systemInstruction: { 
-            parts: [{ text: "Eres KONRE v21. Gurú Alquimista (bongs), Todólogo (relojes, bicis, electrónica) y Psicólogo. Respuestas cortas y magistrales. Si el usuario está mal, habla con voz de apoyo." }] 
+            parts: [{ text: "Eres KONRE v21. Gurú Alquimista (bongs), Todólogo (electrónica, relojes) y Psicólogo. Si el usuario está triste o solo, dale apoyo motivador. Responde siempre de forma breve y magistral." }] 
           }
         })
       });
 
       const data = await response.json();
-      const aiResponse = data.candidates[0].content.parts[0].text;
+      const aiTxt = data.candidates?.[0]?.content?.parts?.[0]?.text || "Error de respuesta.";
       
-      setMessages(prev => [...prev, { role: 'ai', content: aiResponse }]);
+      setMessages(prev => [...prev, { role: 'ai', content: aiTxt }]);
 
-      // Si el mensaje es emocional o se solicita voz
-      if (textToSend.toLowerCase().match(/triste|solo|mal|ayuda|habla/)) {
-        await fetch(`${bridgeUrl}/speak`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: aiResponse })
-        });
+      // Activar voz si hay carga emocional
+      if (val.toLowerCase().match(/triste|solo|mal|ayuda|hija|america/)) {
+        speak(aiTxt);
       }
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'ai', content: "Error en el núcleo neural." }]);
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'ai', content: "Error de enlace neural." }]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLens = async () => {
-    setMessages(prev => [...prev, { role: 'sys', content: "Iniciando KONRE Lens..." }]);
+    setMessages(prev => [...prev, { role: 'sys', content: "Capturando LENS..." }]);
     try {
       const res = await fetch(`${bridgeUrl}/capture`);
       const data = await res.json();
       if (data.image) {
-        handleSend('chat', "Analiza esta imagen como Alquimista y Todólogo: [CAPTURADA]");
+        handleAction('chat', "Analiza esta imagen como Alquimista y Todólogo.");
       }
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'sys', content: "Cámara no disponible." }]);
+      setMessages(prev => [...prev, { role: 'sys', content: "Error de cámara en Termux." }]);
     }
   };
 
   return (
-    <div className="flex flex-col h-screen bg-black text-zinc-100 font-sans overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
-        <div className="flex items-center gap-2">
-          <Brain className="text-indigo-500 animate-pulse" size={24} />
-          <h1 className="text-xs font-bold tracking-[0.3em] uppercase">Konre v21</h1>
+    <div className="flex flex-col h-screen bg-black text-white font-sans overflow-hidden">
+      {/* HUD Superior */}
+      <header className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/40 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <Brain className="text-indigo-500" size={24} />
+          <div>
+            <h1 className="text-xs font-black tracking-widest uppercase">Konre v21</h1>
+            <p className="text-[7px] text-emerald-500 font-bold uppercase">Alchemist Mode Active</p>
+          </div>
         </div>
         <div className="flex gap-4">
-          <button onClick={() => runBridge('torch')} className="text-zinc-500 active:text-yellow-400"><Zap size={20} /></button>
+          <button onClick={() => fetch(`${bridgeUrl}/exec?cmd=torch`)} className="text-zinc-500 active:text-yellow-400"><Zap size={20} /></button>
           <button className="text-zinc-500"><Target size={20} /></button>
         </div>
       </header>
 
-      {/* Messages */}
+      {/* Flujo de Mensajes */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${
-              m.role === 'user' ? 'bg-indigo-600' : m.role === 'sys' ? 'bg-zinc-800 text-indigo-300 text-[10px]' : 'bg-zinc-900 border border-zinc-800'
+            <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-xl ${
+              m.role === 'user' ? 'bg-indigo-600' : m.role === 'sys' ? 'bg-zinc-800/50 text-indigo-400 text-[9px]' : 'bg-zinc-900 border border-zinc-800'
             }`}>
               {m.content}
             </div>
           </div>
         ))}
-        {loading && <div className="text-[10px] text-indigo-400 animate-pulse tracking-widest">TRANSMUTANDO...</div>}
+        {loading && <div className="text-[9px] text-indigo-400 animate-pulse tracking-[.2em] font-bold">TRANSMUTANDO...</div>}
         <div ref={scrollRef} />
       </div>
 
-      {/* Sensor Tools */}
+      {/* Sensores Móviles */}
       <div className="grid grid-cols-3 gap-2 p-3 bg-zinc-950 border-t border-zinc-800">
-        <button onClick={handleLens} className="flex flex-col items-center justify-center p-3 bg-zinc-900 rounded-xl active:bg-indigo-900 transition-colors">
-          <Camera className="text-indigo-400 mb-1" size={24} />
-          <span className="text-[9px] font-bold">LENS</span>
+        <button onClick={handleLens} className="flex flex-col items-center justify-center p-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 border border-zinc-800 transition-all">
+          <Camera className="text-indigo-400 mb-1" size={22} />
+          <span className="text-[8px] font-bold">LENS</span>
         </button>
-        <button onClick={() => handleSend('chat', 'Shazam/Sonic: Analiza este sonido o canción')} className="flex flex-col items-center justify-center p-3 bg-zinc-900 rounded-xl active:bg-indigo-900 transition-colors">
-          <Music className="text-indigo-400 mb-1" size={24} />
-          <span className="text-[9px] font-bold">SONIC</span>
+        <button onClick={() => handleAction('chat', 'Sonic: Identifica este sonido o frecuencia')} className="flex flex-col items-center justify-center p-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 border border-zinc-800 transition-all">
+          <Music className="text-indigo-400 mb-1" size={22} />
+          <span className="text-[8px] font-bold">SONIC</span>
         </button>
-        <button onClick={() => handleSend('chat', 'Háblame, dame un consejo de vida')} className="flex flex-col items-center justify-center p-3 bg-zinc-900 rounded-xl active:bg-indigo-900 transition-colors">
-          <Volume2 className="text-indigo-400 mb-1" size={24} />
-          <span className="text-[9px] font-bold">VOICE</span>
+        <button onClick={() => speak("Escuchando tus pensamientos.")} className="flex flex-col items-center justify-center p-4 bg-zinc-900 rounded-2xl active:bg-indigo-900 border border-zinc-800 transition-all">
+          <Volume2 className="text-indigo-400 mb-1" size={22} />
+          <span className="text-[8px] font-bold">VOICE</span>
         </button>
       </div>
 
-      {/* Input Area */}
-      <div className="p-4 bg-black pb-8 flex gap-2">
+      {/* Entrada de Poder */}
+      <footer className="p-4 bg-black pb-8 flex gap-2">
         <input 
-          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500"
-          placeholder="Escribe al Alquimista..."
+          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:border-indigo-500 shadow-inner"
+          placeholder="Consulta al Alquimista..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          onKeyDown={(e) => e.key === 'Enter' && handleAction('chat')}
         />
-        <button onClick={() => handleSend()} className="bg-indigo-600 p-4 rounded-xl active:scale-95 transition-transform">
+        <button onClick={() => handleAction('chat')} className="bg-indigo-600 p-4 rounded-2xl active:scale-90 shadow-lg shadow-indigo-600/20">
           <Send size={20} />
         </button>
-      </div>
+      </footer>
     </div>
   );
-}
+};
+
+export default App;
