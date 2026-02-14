@@ -1,122 +1,126 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Brain, Camera, Music, Send, Zap, Volume2, Target, Activity } from 'lucide-react';
+import { Brain, Camera, Music, Send, Volume2, Zap, Target } from 'lucide-react';
 
 const App = () => {
-  const [messages, setMessages] = useState([]);
+  const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isZen, setIsZen] = useState(false);
-  
-  const apiKey = ""; 
-  const bridgeUrl = "http://192.168.1.72:8080"; 
   const scrollRef = useRef(null);
+
+  // Configuración de enlace con Termux
+  const bridgeUrl = "http://192.168.1.72:8080"; 
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [msgs]);
 
-  const speak = async (text) => {
+  const speak = async (txt) => {
     try {
       await fetch(`${bridgeUrl}/speak`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.substring(0, 250) })
+        body: JSON.stringify({ text: txt.substring(0, 200) })
       });
-    } catch (e) { console.log("Offline"); }
+    } catch (e) { console.log("Termux offline"); }
   };
 
-  const handleLens = async () => {
+  const handleAction = async (type, payload = "") => {
     setLoading(true);
-    setMessages(p => [...p, { id: Date.now(), text: "👁️ LENS: Analizando...", type: 'sys' }]);
+    let userText = payload || input;
+    if (type === 'lens') {
+      setMsgs(p => [...p, { id: Date.now(), text: "👁️ Analizando imagen...", type: 'sys' }]);
+      try {
+        const res = await fetch(`${bridgeUrl}/capture`);
+        const data = await res.json();
+        userText = "Analiza esta imagen como experto Todólogo y Alquimista: [IMAGE_DATA]";
+        // Aquí iría la lógica de envío de imagen a Gemini
+      } catch (e) { 
+        setMsgs(p => [...p, { id: Date.now(), text: "Error de cámara en Termux.", type: 'sys' }]);
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (!userText.trim() && type === 'chat') { setLoading(false); return; }
+    if (type === 'chat') {
+      setMsgs(p => [...p, { id: Date.now(), text: userText, type: 'user' }]);
+      setInput('');
+    }
+
     try {
-      const res = await fetch(`${bridgeUrl}/capture`);
-      const data = await res.json();
-      const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: "Eres KONRE: Todólogo y Alquimista. Analiza la imagen y da instrucciones técnicas breves." },
-              { inlineData: { mimeType: "image/jpeg", data: data.image } }
-            ]
-          }]
+          contents: [{ parts: [{ text: userText }] }],
+          systemInstruction: { parts: [{ text: "Eres KONRE: Todólogo, Alquimista y Psicólogo de apoyo. Da respuestas cortas, potentes y sabias. Si el usuario está triste, motívalo." }] }
         })
       });
-      const aiData = await aiRes.json();
-      const txt = aiData.candidates[0].content.parts[0].text;
-      setMessages(p => [...p, { id: Date.now(), text: txt, type: 'ai' }]);
-      speak(txt);
+      const data = await response.json();
+      const aiTxt = data.candidates[0].content.parts[0].text;
+      setMsgs(p => [...p, { id: Date.now(), text: aiTxt, type: 'ai' }]);
+      if (userText.toLowerCase().match(/triste|solo|ayuda/)) speak(aiTxt);
     } catch (e) {
-      setMessages(p => [...p, { id: Date.now(), text: "Error de Sensor.", type: 'sys' }]);
-    } finally { setLoading(false); }
-  };
-
-  const handleChat = async (override) => {
-    const val = (override || input).trim();
-    if (!val) return;
-    if (!override) setInput('');
-    setMessages(p => [...p, { id: Date.now(), text: val, type: 'user' }]);
-    setLoading(true);
-    try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: val }] }],
-          systemInstruction: { parts: [{ text: "Eres KONRE: Todólogo, Alquimista y Psicólogo. Si el usuario está mal, dale apoyo. No menciones a terceros." }] }
-        })
-      });
-      const data = await res.json();
-      const txt = data.candidates[0].content.parts[0].text;
-      setMessages(p => [...p, { id: Date.now(), text: txt, type: 'ai' }]);
-      if (val.toLowerCase().match(/triste|solo|ayuda/)) speak(txt);
-    } catch (e) {
-      setMessages(p => [...p, { id: Date.now(), text: "Error Neural.", type: 'sys' }]);
-    } finally { setLoading(false); }
+      setMsgs(p => [...p, { id: Date.now(), text: "Error de conexión neural.", type: 'sys' }]);
+    }
+    setLoading(false);
   };
 
   return (
-    <div className={`h-screen flex flex-col ${isZen ? 'bg-zinc-950' : 'bg-black'} text-white overflow-hidden font-sans`}>
-      <header className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+    <div className="h-screen bg-black text-white flex flex-col font-sans overflow-hidden">
+      {/* Cabecera */}
+      <div className="p-4 border-b border-zinc-900 flex justify-between items-center bg-zinc-950">
         <div className="flex items-center gap-2">
-          <Brain className="text-indigo-500" size={20} />
-          <span className="text-xs font-bold tracking-widest">KONRE V21</span>
+          <Brain className="text-indigo-500" size={24} />
+          <span className="font-bold tracking-tighter">KONRE v21</span>
         </div>
-        <button onClick={() => setIsZen(!isZen)} className="text-zinc-500"><Target size={20} /></button>
-      </header>
+        <button onClick={() => fetch(`${bridgeUrl}/exec?cmd=torch`)} className="text-zinc-600 active:text-yellow-400">
+          <Zap size={20} />
+        </button>
+      </div>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map(m => (
+      {/* Chat */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {msgs.map(m => (
           <div key={m.id} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`p-3 rounded-2xl max-w-[85%] text-sm ${m.type === 'user' ? 'bg-indigo-600' : 'bg-zinc-900'}`}>
+            <div className={`p-3 rounded-2xl max-w-[85%] text-sm ${m.type === 'user' ? 'bg-indigo-600' : 'bg-zinc-900 border border-zinc-800'}`}>
               {m.text}
             </div>
           </div>
         ))}
-        {loading && <div className="text-[10px] animate-pulse text-indigo-400">PROCESANDO...</div>}
+        {loading && <div className="text-[10px] text-indigo-500 animate-pulse uppercase tracking-widest">Procesando...</div>}
         <div ref={scrollRef} />
-      </main>
+      </div>
 
-      <div className="grid grid-cols-3 gap-2 p-3 bg-zinc-900">
-        <button onClick={handleLens} className="flex flex-col items-center p-3 bg-zinc-800 rounded-xl active:bg-indigo-700">
-          <Camera size={24} className="text-indigo-400" />
-          <span className="text-[8px] mt-1">LENS</span>
+      {/* Botones de Sensores */}
+      <div className="grid grid-cols-3 gap-2 p-3 bg-zinc-950 border-t border-zinc-900">
+        <button onClick={() => handleAction('lens')} className="flex flex-col items-center p-3 bg-zinc-900 rounded-xl border border-zinc-800 active:bg-indigo-900 transition-colors">
+          <Camera className="text-indigo-400" size={24} />
+          <span className="text-[9px] mt-1 font-bold">LENS</span>
         </button>
-        <button onClick={() => handleChat("Analiza este sonido: ")} className="flex flex-col items-center p-3 bg-zinc-800 rounded-xl active:bg-indigo-700">
-          <Music size={24} className="text-indigo-400" />
-          <span className="text-[8px] mt-1">SONIC</span>
+        <button onClick={() => handleAction('chat', 'Identifica este sonido/música: ')} className="flex flex-col items-center p-3 bg-zinc-900 rounded-xl border border-zinc-800 active:bg-indigo-900 transition-colors">
+          <Music className="text-indigo-400" size={24} />
+          <span className="text-[9px] mt-1 font-bold">SONIC</span>
         </button>
-        <button onClick={() => speak("Sistema listo.")} className="flex flex-col items-center p-3 bg-zinc-800 rounded-xl active:bg-indigo-700">
-          <Volume2 size={24} className="text-indigo-400" />
-          <span className="text-[8px] mt-1">VOICE</span>
+        <button onClick={() => speak("Voz de KONRE lista.")} className="flex flex-col items-center p-3 bg-zinc-900 rounded-xl border border-zinc-800 active:bg-indigo-900 transition-colors">
+          <Volume2 className="text-indigo-400" size={24} />
+          <span className="text-[9px] mt-1 font-bold">VOICE</span>
         </button>
       </div>
 
-      <footer className="p-4 bg-black flex gap-2">
-        <input className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm outline-none" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} placeholder="Escribe..." />
-        <button onClick={() => handleChat()} className="bg-indigo-600 p-3 rounded-xl"><Send size={18} /></button>
-      </footer>
+      {/* Input */}
+      <div className="p-4 bg-black flex gap-2 border-t border-zinc-900 pb-8">
+        <input 
+          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleAction('chat')}
+          placeholder="Escribe al Cerebro..."
+        />
+        <button onClick={() => handleAction('chat')} className="bg-indigo-600 p-3 rounded-xl shadow-lg active:scale-95 transition-transform">
+          <Send size={20} />
+        </button>
+      </div>
     </div>
   );
 };
